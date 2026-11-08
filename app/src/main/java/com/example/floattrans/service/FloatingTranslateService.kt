@@ -27,8 +27,8 @@ class FloatingTranslateService : Service() {
     private val translator = MlKitTranslator()
     private val idClient = LanguageIdentification.getClient()
     
-    private var currentSrcLang = "en"  // 当前页面识别出的语言
-    private var currentTargetLang = "zh" // 用户选择的目标语言（默认中文）
+    private var currentSrcLang = "en"
+    private var currentTargetLang = "zh"
     private var lastScannedText = ""
     private var isTranslating = false
 
@@ -41,7 +41,6 @@ class FloatingTranslateService : Service() {
         startForegroundCompat()
         addFloatingBall()
         
-        // 实时静默检测页面语言
         scope.launch(Dispatchers.IO) {
             while (isActive) { 
                 detectScreenLanguage()
@@ -49,7 +48,6 @@ class FloatingTranslateService : Service() {
             }
         }
         
-        // 实时滚动自动提取（如果开启）
         initAutoTranslate()
     }
 
@@ -59,7 +57,6 @@ class FloatingTranslateService : Service() {
             TranslationAccessibilityService.instance?.onContentChanged = {
                 val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
                 if (prefs.getBoolean("auto_translate", false)) {
-                    // 防抖 1 秒
                     scope.launch {
                         delay(1000) 
                         triggerTranslate()
@@ -69,7 +66,6 @@ class FloatingTranslateService : Service() {
         }
     }
 
-    // 智能语言检测：中英混杂优先显示外语
     private suspend fun detectScreenLanguage() {
         val blocks = TranslationAccessibilityService.instance?.extractTextBlocks() ?: return
         if (blocks.isEmpty()) return
@@ -81,7 +77,6 @@ class FloatingTranslateService : Service() {
                 .addOnFailureListener { cont.resumeWith(Result.success(emptyList())) }
         }
         
-        // 如果检测结果包含非中文，优先将外语作为源语言
         var detected = "zh" 
         if (langs.contains("en")) detected = "en"
         else if (langs.contains("ja")) detected = "ja"
@@ -117,7 +112,6 @@ class FloatingTranslateService : Service() {
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> { 
                     downX = event.rawX; downY = event.rawY; startX = p.x; startY = p.y; isDragging = false
-                    // 长按 3 秒检测
                     longPressJob = scope.launch {
                         delay(3000)
                         if (!isDragging) {
@@ -127,17 +121,24 @@ class FloatingTranslateService : Service() {
                     true 
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = event.rawX - downX; val dy = event.rawY - downY
+                    val dx = event.rawX - downX
+                    val dy = event.rawY - downY
                     if (!isDragging && (abs(dx) > 18f || abs(dy) > 18f)) {
                         isDragging = true
-                        longPressJob?.cancel() // 拖动取消长按
+                        longPressJob?.cancel()
                     }
-                    if (isDragging) { p.x = startX + dx.toInt(); p.y = startY + dy.toInt(); wm.updateViewLayout(ballView, p) }
+                    if (isDragging) { 
+                        p.x = startX + dx.toInt()
+                        p.y = startY + dy.toInt()
+                        wm.updateViewLayout(ballView, p) 
+                    }
                     true
                 }
                 MotionEvent.ACTION_UP -> { 
-                    longPressJob?.cancel() // 抬手取消长按
-                    if (!isDragging) { triggerTranslate() }; 
+                    longPressJob?.cancel()
+                    if (!isDragging) {
+                        triggerTranslate()
+                    }
                     true 
                 }
                 else -> false
@@ -146,7 +147,6 @@ class FloatingTranslateService : Service() {
         wm.addView(ballView, p)
     }
 
-    // 长按弹窗：选择目标语言
     private fun showLangMenu() {
         if (langMenuView != null) return
         
@@ -181,7 +181,9 @@ class FloatingTranslateService : Service() {
     
     private fun setTargetLang(lang: String) {
         currentTargetLang = lang
-        if (langMenuView != null) wm.removeView(langMenuView)
+        if (langMenuView != null) {
+            wm.removeView(langMenuView)
+        }
         langMenuView = null
     }
 
@@ -192,7 +194,6 @@ class FloatingTranslateService : Service() {
         
         scope.launch {
             val blocks = withContext(Dispatchers.Default) { TranslationAccessibilityService.instance?.extractTextBlocks() ?: emptyList() }
-            // 提取并保留换行排版
             val mergedText = blocks.joinToString("\n") { it.text }.filter { it.isNotBlank() }
             
             if (mergedText.isBlank()) { 
@@ -202,19 +203,24 @@ class FloatingTranslateService : Service() {
             }
             
             val currentText = mergedText
-            if (currentText == lastScannedText && !isTranslating) return@launch // 防重复
+            if (currentText == lastScannedText) {
+                isTranslating = false
+                return@launch 
+            }
             lastScannedText = currentText
 
-            // 翻译逻辑
             val translatedLines = mutableListOf<String>()
             val linesToTranslate = currentText.split("\n")
             
             for (line in linesToTranslate) {
                 if (line.length > 2) {
-                    try { translatedLines.add(translator.translate(line, currentSrcLang, currentTargetLang)) } 
-                    catch (e: Exception) { translatedLines.add("[翻译失败]") }
+                    try { 
+                        translatedLines.add(translator.translate(line, currentSrcLang, currentTargetLang)) 
+                    } catch (e: Exception) { 
+                        translatedLines.add("[翻译失败]") 
+                    }
                 } else {
-                    translatedLines.add(line) // 标点符号直接透传
+                    translatedLines.add(line) 
                 }
             }
             
