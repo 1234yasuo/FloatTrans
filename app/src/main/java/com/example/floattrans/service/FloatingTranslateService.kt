@@ -39,7 +39,6 @@ class FloatingTranslateService : Service() {
         super.onCreate()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         resultOverlay = ResultOverlayManager(this)
-        
         resultOverlay.onDismiss = { pauseAutoTranslateUntil = System.currentTimeMillis() + 3000 }
 
         startForegroundCompat()
@@ -67,7 +66,6 @@ class FloatingTranslateService : Service() {
         val blocks = TranslationAccessibilityService.instance?.extractTextBlocks() ?: return
         if (blocks.isEmpty()) return
         val sampleText = blocks.take(10).joinToString(" ") { it.text }
-        
         val langs = suspendCancellableCoroutine<List<String>> { cont ->
             idClient.identifyPossibleLanguages(sampleText)
                 .addOnSuccessListener { cont.resumeWith(Result.success(it.map { l -> l.languageTag.substringBefore("-") })) }
@@ -95,7 +93,6 @@ class FloatingTranslateService : Service() {
         }
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
         val size = (56 * resources.displayMetrics.density).toInt()
-        // 修复：加上 FLAG_NOT_TOUCH_MODAL 确保触摸事件不被拦截
         val p = WindowManager.LayoutParams(size, size, type, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT).apply { gravity = Gravity.TOP or Gravity.START; x = 200; y = 400 }
         
         var downX = 0f; var downY = 0f; var startX = 0; var startY = 0; 
@@ -145,7 +142,6 @@ class FloatingTranslateService : Service() {
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
-            // 修复：菜单必须加上 FLAG_NOT_TOUCH_MODAL 才能点击内部按钮
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT
         ).apply { gravity = Gravity.CENTER }
         
@@ -163,7 +159,6 @@ class FloatingTranslateService : Service() {
         
         scope.launch {
             val blocks = withContext(Dispatchers.Default) { TranslationAccessibilityService.instance?.extractTextBlocks() ?: emptyList() }
-            // 提取出干净的行列表
             val linesToTranslate = blocks.map { it.text }.filter { it.isNotBlank() }
             
             if (linesToTranslate.isEmpty()) { 
@@ -186,7 +181,6 @@ class FloatingTranslateService : Service() {
             }
             
             withContext(Dispatchers.Main) { 
-                // 传入 List 保证行对齐
                 resultOverlay.showResults(linesToTranslate, translatedLines) 
                 isTranslating = false
             }

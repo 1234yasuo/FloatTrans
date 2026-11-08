@@ -1,7 +1,7 @@
 package com.example.floattrans
+
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.*
@@ -17,7 +17,10 @@ class MainActivity : AppCompatActivity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val modelManager = RemoteModelManager.getInstance()
     
-    private val langList = listOf("英语" to "en", "中文" to "zh", "日语" to "ja", "韩语" to "ko", "法语" to "fr", "德语" to "de", "西班牙语" to "es", "俄语" to "ru")
+    private val langList = listOf(
+        "英语" to "en", "中文" to "zh", "日语" to "ja", "韩语" to "ko",
+        "法语" to "fr", "德语" to "de", "西班牙语" to "es", "俄语" to "ru"
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,20 +42,20 @@ class MainActivity : AppCompatActivity() {
             override fun onNothingSelected(p: AdapterView<*>?) {}
         }
 
-        findViewById<Switch>(R.id.switchAutoTranslate).apply {
-            isChecked = prefs.getBoolean("auto_translate", false)
-            setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean("auto_translate", checked).apply() }
-        }
+        // 使用明确类型的 android.widget.Switch
+        val switchAuto = findViewById<android.widget.Switch>(R.id.switchAutoTranslate)
+        switchAuto.isChecked = prefs.getBoolean("auto_translate", false)
+        switchAuto.setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean("auto_translate", checked).apply() }
 
+        // 渲染离线包列表
         val layoutLang = findViewById<LinearLayout>(R.id.layoutLangPacks)
         renderLangPacks(layoutLang)
 
-        findViewById<Switch>(R.id.switchEnable).apply {
-            isChecked = Settings.canDrawOverlays(this@MainActivity)
-            setOnCheckedChangeListener { _, checked ->
-                val svc = Intent(this@MainActivity, FloatingTranslateService::class.java)
-                if (checked) ContextCompat.startForegroundService(this@MainActivity, svc) else stopService(svc)
-            }
+        val switchEnable = findViewById<android.widget.Switch>(R.id.switchEnable)
+        switchEnable.isChecked = Settings.canDrawOverlays(this@MainActivity)
+        switchEnable.setOnCheckedChangeListener { _, checked ->
+            val svc = Intent(this@MainActivity, FloatingTranslateService::class.java)
+            if (checked) ContextCompat.startForegroundService(this@MainActivity, svc) else stopService(svc)
         }
     }
 
@@ -64,13 +67,22 @@ class MainActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 8, 0, 8) }
                 gravity = android.view.Gravity.CENTER_VERTICAL
             }
+            
             val tvName = TextView(this).apply {
-                text = name; textSize = 16f
+                text = name
+                textSize = 16f
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             }
-            val btnAction = Button(this).apply { text = "查询中..."; isEnabled = false }
-            row.addView(tvName); row.addView(btnAction); container.addView(row)
             
+            val btnAction = Button(this).apply {
+                text = "查询中..."
+                isEnabled = false
+            }
+            
+            row.addView(tvName)
+            row.addView(btnAction)
+            container.addView(row)
+
             checkModelStatus(code, btnAction)
             
             btnAction.setOnClickListener {
@@ -86,28 +98,46 @@ class MainActivity : AppCompatActivity() {
             btn.tag = isDownloaded
             btn.isEnabled = true
         }.addOnFailureListener {
-            btn.text = "状态查询失败"; btn.isEnabled = true
+            btn.text = "状态查询失败"
+            btn.isEnabled = true
         }
     }
 
     private fun downloadModel(langCode: String, btn: Button) {
-        btn.text = "下载中..."; btn.isEnabled = false
+        btn.text = "下载中..."
+        btn.isEnabled = false
         val model = TranslateRemoteModel.Builder(langCode).build()
+        
         modelManager.download(model, DownloadConditions.Builder().build())
-            .addOnSuccessListener { Toast.makeText(this, "下载成功", Toast.LENGTH_SHORT).show(); checkModelStatus(langCode, btn) }
-            .addOnFailureListener { Toast.makeText(this, "下载失败，请检查网络或GMS服务", Toast.LENGTH_LONG).show(); btn.text = "下载离线包"; btn.isEnabled = true }
+            .addOnSuccessListener {
+                Toast.makeText(this, "下载成功", Toast.LENGTH_SHORT).show()
+                checkModelStatus(langCode, btn)
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "下载失败，请检查网络", Toast.LENGTH_SHORT).show()
+                btn.text = "下载离线包"
+                btn.isEnabled = true
+            }
     }
 
     private fun deleteModel(langCode: String, btn: Button) {
-        btn.text = "删除中..."; btn.isEnabled = false
+        btn.text = "删除中..."
+        btn.isEnabled = false
         val model = TranslateRemoteModel.Builder(langCode).build()
+        
         modelManager.deleteDownloadedModel(model)
-            .addOnSuccessListener { Toast.makeText(this, "已释放空间", Toast.LENGTH_SHORT).show(); checkModelStatus(langCode, btn) }
-            .addOnFailureListener { Toast.makeText(this, "删除失败", Toast.LENGTH_SHORT).show(); btn.isEnabled = true }
+            .addOnSuccessListener {
+                Toast.makeText(this, "已删除，释放空间", Toast.LENGTH_SHORT).show()
+                checkModelStatus(langCode, btn)
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "删除失败", Toast.LENGTH_SHORT).show()
+                btn.isEnabled = true
+            }
     }
 
     override fun onDestroy() {
-        scope.cancel() // 修复内存泄漏
+        scope.cancel()
         super.onDestroy()
     }
 }

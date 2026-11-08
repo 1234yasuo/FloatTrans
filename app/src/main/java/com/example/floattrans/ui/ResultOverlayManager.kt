@@ -29,7 +29,6 @@ class ResultOverlayManager(private val context: Context) {
         val view = LayoutInflater.from(context).inflate(R.layout.overlay_panel, null)
         val container = view.findViewById<LinearLayout>(R.id.layoutContent)
         
-        // 严格按索引对齐，绝不因为空行错位
         for (i in origLines.indices) {
             val orig = origLines[i].trim()
             if (orig.isEmpty()) continue
