@@ -15,6 +15,7 @@ import com.example.floattrans.ui.ResultOverlayManager
 import com.google.mlkit.nl.languageid.LanguageIdentification
 import kotlinx.coroutines.*
 import kotlin.math.abs
+
 class FloatingTranslateService : Service() {
     private lateinit var wm: WindowManager
     private var ballView: TextView? = null
@@ -23,26 +24,42 @@ class FloatingTranslateService : Service() {
     private val translator = MlKitTranslator()
     private val idClient = LanguageIdentification.getClient()
     private var currentSrcLang = "en"
+
     override fun onBind(intent: Intent?): IBinder? = null
+
     override fun onCreate() {
         super.onCreate()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         resultOverlay = ResultOverlayManager(this)
-        startForegroundCompat(); addFloatingBall()
-        scope.launch(Dispatchers.IO) { while (isActive) { detectScreenLanguage(); delay(3000) } }
+        startForegroundCompat()
+        addFloatingBall()
+        scope.launch(Dispatchers.IO) {
+            while (isActive) { detectScreenLanguage(); delay(3000) }
+        }
     }
+
     private suspend fun detectScreenLanguage() {
         val blocks = TranslationAccessibilityService.instance?.extractTextBlocks() ?: return
         if (blocks.isEmpty()) return
         val sampleText = blocks.take(5).joinToString(" ") { it.text }
-        suspendCancellableCoroutine<String?> { cont ->
-            idClient.identifyPossibleLanguages(sampleText).addOnSuccessListener { cont.resume(it.firstOrNull()?.languageTag?.substringBefore("-")) }.addOnFailureListener { cont.resume(null) }
-        }?.let { lang -> if (lang != null && lang != "und" && lang != currentSrcLang) { currentSrcLang = lang; updateBallText(lang) } }
+        
+        val lang = suspendCancellableCoroutine<String?> { cont ->
+            idClient.identifyPossibleLanguages(sampleText)
+                .addOnSuccessListener { cont.resumeWith(Result.success(it.firstOrNull()?.languageTag?.substringBefore("-"))) }
+                .addOnFailureListener { cont.resumeWith(Result.success(null)) }
+        }
+        
+        if (lang != null && lang != "und" && lang != currentSrcLang) {
+            currentSrcLang = lang
+            updateBallText(lang)
+        }
     }
+
     private fun updateBallText(langTag: String) {
         val display = when(langTag) { "en"->"英"; "zh"->"中"; "ja"->"日"; "ko"->"韩"; "fr"->"法"; "de"->"德"; "es"->"西"; "ru"->"俄"; else->"译" }
         scope.launch(Dispatchers.Main) { ballView?.text = display }
     }
+
     private fun addFloatingBall() {
         ballView = TextView(this).apply {
             text = "译"; setTextColor(android.graphics.Color.WHITE); textSize = 18f; gravity = Gravity.CENTER
@@ -68,6 +85,7 @@ class FloatingTranslateService : Service() {
         }
         wm.addView(ballView, p)
     }
+
     private fun onBallClicked() {
         resultOverlay.showLoading()
         scope.launch {
@@ -85,6 +103,7 @@ class FloatingTranslateService : Service() {
             withContext(Dispatchers.Main) { resultOverlay.showResults(mergedLines, translatedLines) }
         }
     }
+
     private fun startForegroundCompat() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = getSystemService(NotificationManager::class.java)
@@ -94,5 +113,6 @@ class FloatingTranslateService : Service() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) ServiceCompat.startForeground(this, 1001, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE) else startForeground(1001, notif)
         }
     }
+
     override fun onDestroy() { super.onDestroy(); scope.cancel(); ballView?.let { wm.removeView(it) }; resultOverlay.dismiss() }
 }
