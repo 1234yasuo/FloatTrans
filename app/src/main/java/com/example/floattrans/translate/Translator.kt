@@ -15,7 +15,7 @@ class MlKitTranslator {
         val src = TranslateLanguage.fromLanguageTag(sourceLang ?: detect(text)) ?: TranslateLanguage.ENGLISH
         if (src == targetLang) return text
         val translator = cache.getOrPut("$src->$targetLang") { Translation.getClient(TranslatorOptions.Builder().setSourceLanguage(src).setTargetLanguage(targetLang).build()) }
-        suspendCancellableCoroutine<Unit> { it.resume(Unit) }
+        suspendCancellableCoroutine<Unit> { cont -> translator.downloadModelIfNeeded(DownloadConditions.Builder().build()).addOnSuccessListener { cont.resume(Unit) }.addOnFailureListener { cont.resumeWithException(it) } }
         return suspendCancellableCoroutine { cont -> translator.translate(text).addOnSuccessListener { cont.resume(it) }.addOnFailureListener { cont.resumeWithException(it) } }
     }
     private suspend fun detect(text: String): String = suspendCancellableCoroutine { cont ->
