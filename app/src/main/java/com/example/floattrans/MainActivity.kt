@@ -79,7 +79,6 @@ class MainActivity : AppCompatActivity() {
             if (spinner.selectedItemPosition != index) {
                 spinner.setSelection(index, false) 
             }
-            // 同步开关状态
             if (::switchEnable.isInitialized) {
                 switchEnable.isChecked = Settings.canDrawOverlays(this)
             }
