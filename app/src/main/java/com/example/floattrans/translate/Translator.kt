@@ -11,12 +11,19 @@ import java.util.concurrent.ConcurrentHashMap
 
 class MlKitTranslator {
     private val idClient = LanguageIdentification.getClient()
-    // 【修复】：使用 ConcurrentHashMap 保证多线程下获取翻译器实例不崩溃
     private val cache = ConcurrentHashMap<String, com.google.mlkit.nl.translate.Translator>()
     
     suspend fun translate(text: String, sourceLang: String?, targetLang: String): String {
         if (text.isBlank()) return ""
-        val src = TranslateLanguage.fromLanguageTag(sourceLang ?: detect(text)) ?: TranslateLanguage.ENGLISH
+        if (text.matches(Regex("^[0-9\\p{Punct}\\s]+$"))) return text
+        
+        var detectedSrc = sourceLang ?: detect(text)
+        // 【保底】：如果没识别出来，或者文本极短，强制默认为英文
+        if (detectedSrc == "und" || detectedSrc.isBlank()) detectedSrc = "en"
+        
+        var src = TranslateLanguage.fromLanguageTag(detectedSrc) ?: TranslateLanguage.ENGLISH
+        
+        // 如果检测出的语言就是目标语言，直接返回原文
         if (src == targetLang) return text
         
         val translator = cache.getOrPut("$src->$targetLang") { 
@@ -38,7 +45,7 @@ class MlKitTranslator {
     
     private suspend fun detect(text: String): String = suspendCancellableCoroutine { cont ->
         idClient.identifyPossibleLanguages(text)
-            .addOnSuccessListener { if (cont.isActive) cont.resume(it.firstOrNull()?.languageTag ?: TranslateLanguage.ENGLISH) }
-            .addOnFailureListener { if (cont.isActive) cont.resume(TranslateLanguage.ENGLISH) }
+            .addOnSuccessListener { if (cont.isActive) cont.resume(it.firstOrNull()?.languageTag ?: "und") }
+            .addOnFailureListener { if (cont.isActive) cont.resume("und") }
     }
 }

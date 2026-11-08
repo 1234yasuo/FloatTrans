@@ -13,7 +13,6 @@ import android.view.*
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.app.ServiceCompat
 import com.example.floattrans.translate.MlKitTranslator
 import com.example.floattrans.ui.ResultOverlayManager
@@ -33,7 +32,6 @@ class FloatingTranslateService : Service() {
     private val idClient = LanguageIdentification.getClient()
     
     @Volatile private var currentSrcLang = "en"
-    private var currentTargetLang = "zh"
     private var translateJob: Job? = null
     private var lastClickTime = 0L
 
@@ -44,9 +42,6 @@ class FloatingTranslateService : Service() {
         if (!Settings.canDrawOverlays(this)) { stopSelf(); return }
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         resultOverlay = ResultOverlayManager(this)
-        
-        val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
-        currentTargetLang = prefs.getString("target_lang", "zh") ?: "zh"
 
         startForegroundCompat()
         addFloatingBall()
@@ -112,7 +107,7 @@ class FloatingTranslateService : Service() {
                     downX = event.rawX; downY = event.rawY; startX = p.x; startY = p.y
                     isDragging = false; isLongPressTriggered = false
                     longPressJob = scope.launch {
-                        delay(3000)
+                        delay(2000) // 长按 2 秒
                         if (!isDragging) { isLongPressTriggered = true; withContext(Dispatchers.Main) { showLangMenu() } }
                     }
                     true 
@@ -154,12 +149,23 @@ class FloatingTranslateService : Service() {
             setBackgroundColor(Color.parseColor("#33000000"))
             setOnClickListener { closeLangMenu() }
         }
+        
+        // 改为垂直布局，包裹所有常用语言
         val menu = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; setBackgroundColor(Color.parseColor("#EE333333")); setPadding(16, 16, 16, 16)
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.parseColor("#EE333333"))
+            setPadding(16, 16, 16, 16)
         }
-        val btnZh = TextView(this).apply { text = "中"; setTextColor(Color.WHITE); textSize = 20f; setPadding(32, 16, 32, 16); setOnClickListener { setTargetLang("zh") } }
-        val btnEn = TextView(this).apply { text = "英"; setTextColor(Color.WHITE); textSize = 20f; setPadding(32, 16, 32, 16); setOnClickListener { setTargetLang("en") } }
-        menu.addView(btnZh); menu.addView(btnEn)
+        
+        val langs = listOf("中文" to "zh", "英语" to "en", "日语" to "ja", "韩语" to "ko", "法语" to "fr")
+        langs.forEach { (name, code) ->
+            val btn = TextView(this).apply { 
+                text = name; setTextColor(Color.WHITE); textSize = 18f; setPadding(32, 16, 32, 16)
+                setOnClickListener { setMotherTongue(code) } 
+            }
+            menu.addView(btn)
+        }
+
         mask.addView(menu, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.CENTER })
         
         val params = WindowManager.LayoutParams(
@@ -172,7 +178,11 @@ class FloatingTranslateService : Service() {
     }
     
     private fun closeLangMenu() { if (menuMaskView != null) runCatching { wm.removeView(menuMaskView) }; menuMaskView = null }
-    private fun setTargetLang(lang: String) { currentTargetLang = lang; getSharedPreferences("settings", Context.MODE_PRIVATE).edit().putString("target_lang", lang).apply(); closeLangMenu() }
+    
+    private fun setMotherTongue(lang: String) { 
+        getSharedPreferences("settings", Context.MODE_PRIVATE).edit().putString("mother_tongue", lang).apply()
+        closeLangMenu() 
+    }
 
     private fun triggerTranslate() {
         translateJob?.cancel()
@@ -187,14 +197,18 @@ class FloatingTranslateService : Service() {
                     return@launch 
                 }
 
-                // 并发安全：使用 Semaphore 限制最大并发数为 10
+                val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+                val motherTongue = prefs.getString("mother_tongue", "zh") ?: "zh"
+
                 val semaphore = Semaphore(10)
                 val translatedLines = coroutineScope {
                     linesToTranslate.map { line ->
                         async(Dispatchers.Default) {
                             semaphore.withPermit {
                                 if (line.length > 2) {
-                                    try { translator.translate(line, currentSrcLang, currentTargetLang) } 
+                                    try { 
+                                        translator.translate(line, null, motherTongue) 
+                                    } 
                                     catch (e: Exception) { "[翻译失败]" }
                                 } else line
                             }
