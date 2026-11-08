@@ -1,8 +1,10 @@
 package com.example.floattrans
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -21,12 +23,14 @@ class MainActivity : AppCompatActivity() {
         "法语" to "fr", "德语" to "de", "西班牙语" to "es", "俄语" to "ru"
     )
     private lateinit var spinner: Spinner
+    private lateinit var switchEnable: android.widget.Switch
     private lateinit var prefs: android.content.SharedPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        prefs = getSharedPreferences("settings", MODE_PRIVATE)
+        
+        prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
 
         findViewById<Button>(R.id.btnOverlayPermission).setOnClickListener {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
@@ -40,40 +44,45 @@ class MainActivity : AppCompatActivity() {
         spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, langNames)
 
         spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(p: AdapterView<*>?, v: android.view.View?, pos: Int, id: Long) {
-                val selectedCode = langList[pos].second
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val selectedCode = langList[position].second
                 prefs.edit().putString("mother_tongue", selectedCode).apply()
             }
-            override fun onNothingSelected(p: AdapterView<*>?) {}
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
         val layoutLang = findViewById<LinearLayout>(R.id.layoutLangPacks)
         renderLangPacks(layoutLang)
 
-        val switchEnable = findViewById<android.widget.Switch>(R.id.switchEnable)
-        switchEnable.isChecked = Settings.canDrawOverlays(this@MainActivity)
+        switchEnable = findViewById(R.id.switchEnable)
+        switchEnable.isChecked = Settings.canDrawOverlays(this)
         switchEnable.setOnCheckedChangeListener { _, checked ->
             if (checked) {
-                if (!Settings.canDrawOverlays(this@MainActivity)) {
-                    Toast.makeText(this@MainActivity, "请先授予悬浮窗权限", Toast.LENGTH_SHORT).show()
+                if (!Settings.canDrawOverlays(this)) {
+                    Toast.makeText(this, "请先授予悬浮窗权限", Toast.LENGTH_SHORT).show()
                     switchEnable.isChecked = false
                     return@setOnCheckedChangeListener
                 }
-                val svc = Intent(this@MainActivity, FloatingTranslateService::class.java)
-                ContextCompat.startForegroundService(this@MainActivity, svc)
+                val svc = Intent(this, FloatingTranslateService::class.java)
+                ContextCompat.startForegroundService(this, svc)
             } else {
-                stopService(Intent(this@MainActivity, FloatingTranslateService::class.java))
+                stopService(Intent(this, FloatingTranslateService::class.java))
             }
         }
     }
 
-    // 【核心修复】：每次回到页面，自动同步悬浮球修改的母语
     override fun onResume() {
         super.onResume()
-        val savedMother = prefs.getString("mother_tongue", "zh") ?: "zh"
-        val index = langList.indexOfFirst { it.second == savedMother }.coerceAtLeast(0)
-        if (spinner.selectedItemPosition != index) {
-            spinner.setSelection(index, false) // false 防止触发监听器覆盖设置
+        if (::prefs.isInitialized && ::spinner.isInitialized) {
+            val savedMother = prefs.getString("mother_tongue", "zh") ?: "zh"
+            val index = langList.indexOfFirst { it.second == savedMother }.coerceAtLeast(0)
+            if (spinner.selectedItemPosition != index) {
+                spinner.setSelection(index, false) 
+            }
+            // 同步开关状态
+            if (::switchEnable.isInitialized) {
+                switchEnable.isChecked = Settings.canDrawOverlays(this)
+            }
         }
     }
 

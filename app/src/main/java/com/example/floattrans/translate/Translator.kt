@@ -18,12 +18,11 @@ class MlKitTranslator {
         if (text.matches(Regex("^[0-9\\p{Punct}\\s]+$"))) return text
         
         var detectedSrc = sourceLang ?: detect(text)
-        // 【保底】：如果没识别出来，或者文本极短，强制默认为英文
-        if (detectedSrc == "und" || detectedSrc.isBlank()) detectedSrc = "en"
+        if (detectedSrc.isBlank() || detectedSrc == "und") detectedSrc = "en"
         
         var src = TranslateLanguage.fromLanguageTag(detectedSrc) ?: TranslateLanguage.ENGLISH
         
-        // 如果检测出的语言就是目标语言，直接返回原文
+        // 如果源语言就是目标语言，直接原样返回
         if (src == targetLang) return text
         
         val translator = cache.getOrPut("$src->$targetLang") { 
