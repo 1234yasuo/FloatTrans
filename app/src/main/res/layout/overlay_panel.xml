@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="#F0202020" android:padding="16dp" android:layout_margin="16dp" android:elevation="8dp">
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="原文与翻译对照" android:textColor="#AAAAAA" android:textSize="14sp" android:paddingBottom="8dp"/>
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:maxHeight="400dp">
+        <LinearLayout android:id="@+id/layoutContent" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
+    </ScrollView>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="end" android:paddingTop="8dp">
+        <Button android:id="@+id/btnClose" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="关闭" />
+    </LinearLayout>
+</LinearLayout>

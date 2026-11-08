@@ -1,7 +1,7 @@
 plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
 android {
     namespace 'com.example.floattrans'; compileSdk 34
-    defaultConfig { applicationId "com.example.floattrans"; minSdk 24; targetSdk 34; versionCode 1; versionName "1.0" }
+    defaultConfig { applicationId "com.example.floattrans"; minSdk 24; targetSdk 34; versionCode 2; versionName "2.0" }
     buildTypes { release { minifyEnabled false } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = '17' }
@@ -13,4 +13,5 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
     implementation 'com.google.mlkit:translate:17.0.3'
     implementation 'com.google.mlkit:language-id:17.0.6'
+    implementation 'androidx.preference:preference-ktx:1.2.1'
 }
