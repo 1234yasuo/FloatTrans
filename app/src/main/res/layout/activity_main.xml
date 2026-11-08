@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="24dp">
+    <Button android:id="@+id/btnOverlayPermission" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="授予悬浮窗权限" />
+    <Button android:id="@+id/btnAccessibility" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="开启无障碍服务" />
+    <Switch android:id="@+id/switchEnable" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="启用全局翻译悬浮球" />
+</LinearLayout>
