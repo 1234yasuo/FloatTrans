@@ -1,20 +1,79 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" 
-    android:layout_width="match_parent" 
-    android:layout_height="match_parent" 
-    android:orientation="vertical" 
-    android:padding="16dp">
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
 
-    <Button android:id="@+id/btnOverlayPermission" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="1. 授予悬浮窗权限" />
-    <Button android:id="@+id/btnAccessibility" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="2. 开启无障碍服务" />
-    
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="选择翻译模式：" android:layout_marginTop="16dp"/>
-    <Spinner android:id="@+id/spinnerMode" android:layout_width="match_parent" android:layout_height="48dp" />
-    
-    <android.widget.Switch android:id="@+id/switchAutoTranslate" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="开启实时自动翻译 (免点击)" android:layout_marginTop="16dp"/>
-    
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="离线语言包管理：" android:layout_marginTop="16dp"/>
-    <LinearLayout android:id="@+id/layoutLangPacks" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="8dp"/>
-    
-    <android.widget.Switch android:id="@+id/switchEnable" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="启用全局翻译悬浮球" android:layout_marginTop="24dp"/>
-</LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <!-- 核心开关集中放在最前面 -->
+        <android.widget.Switch
+            android:id="@+id/switchEnable"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="启用全局翻译悬浮球"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <android.widget.Switch
+            android:id="@+id/switchAutoTranslate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="开启实时自动翻译 (免点击)"
+            android:textSize="16sp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#DDDDDD"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 权限授予区域 -->
+        <Button
+            android:id="@+id/btnOverlayPermission"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="1. 授予悬浮窗权限" />
+
+        <Button
+            android:id="@+id/btnAccessibility"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="2. 开启无障碍服务" />
+
+        <!-- 翻译模式 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="选择翻译模式："
+            android:layout_marginTop="24dp" />
+
+        <Spinner
+            android:id="@+id/spinnerMode"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp" />
+
+        <!-- 离线语言包列表 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="离线语言包管理："
+            android:layout_marginTop="24dp" />
+
+        <LinearLayout
+            android:id="@+id/layoutLangPacks"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="8dp" />
+
+    </LinearLayout>
+</ScrollView>
