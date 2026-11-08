@@ -31,6 +31,7 @@ class FloatingTranslateService : Service() {
     private var currentTargetLang = "zh"
     private var lastScannedText = ""
     private var isTranslating = false
+    private var pauseAutoTranslateUntil = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -38,16 +39,15 @@ class FloatingTranslateService : Service() {
         super.onCreate()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         resultOverlay = ResultOverlayManager(this)
+        
+        resultOverlay.onDismiss = { pauseAutoTranslateUntil = System.currentTimeMillis() + 3000 }
+
         startForegroundCompat()
         addFloatingBall()
         
         scope.launch(Dispatchers.IO) {
-            while (isActive) { 
-                detectScreenLanguage()
-                delay(2000) 
-            }
+            while (isActive) { detectScreenLanguage(); delay(2000) }
         }
-        
         initAutoTranslate()
     }
 
@@ -56,11 +56,8 @@ class FloatingTranslateService : Service() {
             while (TranslationAccessibilityService.instance == null) delay(1000)
             TranslationAccessibilityService.instance?.onContentChanged = {
                 val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
-                if (prefs.getBoolean("auto_translate", false)) {
-                    scope.launch {
-                        delay(1000) 
-                        triggerTranslate()
-                    }
+                if (prefs.getBoolean("auto_translate", false) && System.currentTimeMillis() > pauseAutoTranslateUntil) {
+                    scope.launch { delay(1000); if (System.currentTimeMillis() > pauseAutoTranslateUntil) triggerTranslate() }
                 }
             }
         }
@@ -81,13 +78,9 @@ class FloatingTranslateService : Service() {
         if (langs.contains("en")) detected = "en"
         else if (langs.contains("ja")) detected = "ja"
         else if (langs.contains("ko")) detected = "ko"
-        else if (langs.contains("fr")) detected = "fr"
         else if (langs.isNotEmpty() && langs[0] != "zh" && langs[0] != "und") detected = langs[0]
 
-        if (detected != currentSrcLang) {
-            currentSrcLang = detected
-            updateBallText(detected)
-        }
+        if (detected != currentSrcLang) { currentSrcLang = detected; updateBallText(detected) }
     }
 
     private fun updateBallText(langTag: String) {
@@ -102,42 +95,35 @@ class FloatingTranslateService : Service() {
         }
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
         val size = (56 * resources.displayMetrics.density).toInt()
-        val p = WindowManager.LayoutParams(size, size, type, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply { gravity = Gravity.TOP or Gravity.START; x = 200; y = 400 }
+        // 修复：加上 FLAG_NOT_TOUCH_MODAL 确保触摸事件不被拦截
+        val p = WindowManager.LayoutParams(size, size, type, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT).apply { gravity = Gravity.TOP or Gravity.START; x = 200; y = 400 }
         
         var downX = 0f; var downY = 0f; var startX = 0; var startY = 0; 
         var isDragging = false
+        var isLongPressTriggered = false
         var longPressJob: Job? = null
 
         ballView?.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> { 
-                    downX = event.rawX; downY = event.rawY; startX = p.x; startY = p.y; isDragging = false
+                    downX = event.rawX; downY = event.rawY; startX = p.x; startY = p.y
+                    isDragging = false; isLongPressTriggered = false
                     longPressJob = scope.launch {
                         delay(3000)
-                        if (!isDragging) {
-                            withContext(Dispatchers.Main) { showLangMenu() }
-                        }
+                        if (!isDragging) { isLongPressTriggered = true; withContext(Dispatchers.Main) { showLangMenu() } }
                     }
                     true 
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = event.rawX - downX
-                    val dy = event.rawY - downY
-                    if (!isDragging && (abs(dx) > 18f || abs(dy) > 18f)) {
-                        isDragging = true
-                        longPressJob?.cancel()
-                    }
-                    if (isDragging) { 
-                        p.x = startX + dx.toInt()
-                        p.y = startY + dy.toInt()
-                        wm.updateViewLayout(ballView, p) 
-                    }
+                    val dx = event.rawX - downX; val dy = event.rawY - downY
+                    if (!isDragging && (abs(dx) > 18f || abs(dy) > 18f)) { isDragging = true; longPressJob?.cancel() }
+                    if (isDragging) { p.x = startX + dx.toInt(); p.y = startY + dy.toInt(); wm.updateViewLayout(ballView, p) }
                     true
                 }
                 MotionEvent.ACTION_UP -> { 
                     longPressJob?.cancel()
-                    if (!isDragging) {
-                        triggerTranslate()
+                    if (!isDragging && !isLongPressTriggered) {
+                        if (langMenuView != null) closeLangMenu() else triggerTranslate()
                     }
                     true 
                 }
@@ -149,43 +135,26 @@ class FloatingTranslateService : Service() {
 
     private fun showLangMenu() {
         if (langMenuView != null) return
-        
         val menu = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Color.parseColor("#EE333333"))
-            setPadding(16, 16, 16, 16)
+            orientation = LinearLayout.HORIZONTAL; setBackgroundColor(Color.parseColor("#EE333333")); setPadding(16, 16, 16, 16)
         }
-        
-        val btnZh = TextView(this).apply {
-            text = "中"; setTextColor(Color.WHITE); textSize = 20f
-            setPadding(32, 16, 32, 16)
-            setOnClickListener { setTargetLang("zh") }
-        }
-        val btnEn = TextView(this).apply {
-            text = "英"; setTextColor(Color.WHITE); textSize = 20f
-            setPadding(32, 16, 32, 16)
-            setOnClickListener { setTargetLang("en") }
-        }
-        menu.addView(btnZh)
-        menu.addView(btnEn)
+        val btnZh = TextView(this).apply { text = "中"; setTextColor(Color.WHITE); textSize = 20f; setPadding(32, 16, 32, 16); setOnClickListener { setTargetLang("zh") } }
+        val btnEn = TextView(this).apply { text = "英"; setTextColor(Color.WHITE); textSize = 20f; setPadding(32, 16, 32, 16); setOnClickListener { setTargetLang("en") } }
+        menu.addView(btnZh); menu.addView(btnEn)
         
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT
+            // 修复：菜单必须加上 FLAG_NOT_TOUCH_MODAL 才能点击内部按钮
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT
         ).apply { gravity = Gravity.CENTER }
         
         wm.addView(menu, params)
         langMenuView = menu
     }
     
-    private fun setTargetLang(lang: String) {
-        currentTargetLang = lang
-        if (langMenuView != null) {
-            wm.removeView(langMenuView)
-        }
-        langMenuView = null
-    }
+    private fun closeLangMenu() { if (langMenuView != null) runCatching { wm.removeView(langMenuView) }; langMenuView = null }
+    private fun setTargetLang(lang: String) { currentTargetLang = lang; closeLangMenu() }
 
     private fun triggerTranslate() {
         if (isTranslating) return
@@ -194,38 +163,31 @@ class FloatingTranslateService : Service() {
         
         scope.launch {
             val blocks = withContext(Dispatchers.Default) { TranslationAccessibilityService.instance?.extractTextBlocks() ?: emptyList() }
-            val mergedText = blocks.joinToString("\n") { it.text }.filter { it.isNotBlank() }
+            // 提取出干净的行列表
+            val linesToTranslate = blocks.map { it.text }.filter { it.isNotBlank() }
             
-            if (mergedText.isBlank()) { 
-                resultOverlay.showResults("未识别到有效文本", "请尝试重新点击")
+            if (linesToTranslate.isEmpty()) { 
+                resultOverlay.showResults(listOf("未识别到有效文本"), listOf("请重新点击"))
                 isTranslating = false
                 return@launch 
             }
             
-            val currentText = mergedText
-            if (currentText == lastScannedText) {
-                isTranslating = false
-                return@launch 
-            }
+            val currentText = linesToTranslate.joinToString("\n")
+            if (currentText == lastScannedText) { isTranslating = false; return@launch }
             lastScannedText = currentText
 
             val translatedLines = mutableListOf<String>()
-            val linesToTranslate = currentText.split("\n")
-            
             for (line in linesToTranslate) {
                 if (line.length > 2) {
-                    try { 
-                        translatedLines.add(translator.translate(line, currentSrcLang, currentTargetLang)) 
-                    } catch (e: Exception) { 
-                        translatedLines.add("[翻译失败]") 
-                    }
+                    try { translatedLines.add(translator.translate(line, currentSrcLang, currentTargetLang)) } catch (e: Exception) { translatedLines.add("[翻译失败]") }
                 } else {
-                    translatedLines.add(line) 
+                    translatedLines.add(line)
                 }
             }
             
             withContext(Dispatchers.Main) { 
-                resultOverlay.showResults(currentText, translatedLines.joinToString("\n")) 
+                // 传入 List 保证行对齐
+                resultOverlay.showResults(linesToTranslate, translatedLines) 
                 isTranslating = false
             }
         }
@@ -241,10 +203,5 @@ class FloatingTranslateService : Service() {
         }
     }
 
-    override fun onDestroy() { 
-        super.onDestroy(); scope.cancel(); 
-        ballView?.let { runCatching { wm.removeView(it) } }
-        langMenuView?.let { runCatching { wm.removeView(it) } }
-        resultOverlay.dismiss() 
-    }
+    override fun onDestroy() { super.onDestroy(); scope.cancel(); ballView?.let { runCatching { wm.removeView(it) } }; closeLangMenu(); resultOverlay.dismiss() }
 }
